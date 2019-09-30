@@ -35,6 +35,7 @@
 #include "core/os/os.h"
 #include "core/print_string.h"
 #include "dependency_editor.h"
+#include "editor_file_system.h"
 #include "editor_resource_preview.h"
 #include "editor_scale.h"
 #include "editor_settings.h"
@@ -257,7 +258,7 @@ void EditorFileDialog::_post_popup() {
 
 	if (is_visible_in_tree()) {
 		Ref<Texture> folder = get_icon("folder", "FileDialog");
-		const Color folder_color = get_color("folder", "FileDialog");
+		const Color folder_color = get_color("folder_icon_modulate", "FileDialog");
 		recent->clear();
 
 		bool res = access == ACCESS_RESOURCES;
@@ -736,7 +737,7 @@ void EditorFileDialog::update_file_list() {
 	dir_access->list_dir_begin();
 
 	Ref<Texture> folder = get_icon("folder", "FileDialog");
-	const Color folder_color = get_color("folder", "FileDialog");
+	const Color folder_color = get_color("folder_icon_modulate", "FileDialog");
 	List<String> files;
 	List<String> dirs;
 
@@ -1085,7 +1086,7 @@ void EditorFileDialog::_make_dir_confirm() {
 		update_filters();
 		update_dir();
 		_push_history();
-
+		EditorFileSystem::get_singleton()->scan_changes(); //we created a dir, so rescan changes
 	} else {
 		mkdirerr->popup_centered_minsize(Size2(250, 50) * EDSCALE);
 	}
@@ -1204,7 +1205,7 @@ void EditorFileDialog::_update_favorites() {
 
 	String current = get_current_dir();
 	Ref<Texture> folder_icon = get_icon("Folder", "EditorIcons");
-	const Color folder_color = get_color("folder", "FileDialog");
+	const Color folder_color = get_color("folder_icon_modulate", "FileDialog");
 	favorites->clear();
 
 	favorite->set_pressed(false);

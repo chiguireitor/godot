@@ -644,7 +644,7 @@ JNIEXPORT void JNICALL Java_org_godotengine_godot_GodotLib_initialize(JNIEnv *en
 	godot_java->on_video_init(env);
 }
 
-JNIEXPORT void JNICALL Java_org_godotengine_godot_GodotLib_ondestroy(JNIEnv *env) {
+JNIEXPORT void JNICALL Java_org_godotengine_godot_GodotLib_ondestroy(JNIEnv *env, jobject obj, jobject activity) {
 	// lets cleanup
 	if (godot_io_java) {
 		delete godot_io_java;
@@ -1385,5 +1385,23 @@ JNIEXPORT void JNICALL Java_org_godotengine_godot_GodotLib_requestPermissionResu
 	String permission = jstring_to_string(p_permission, env);
 	if (permission == "android.permission.RECORD_AUDIO" && p_result) {
 		AudioDriver::get_singleton()->capture_start();
+	}
+}
+
+JNIEXPORT void JNICALL Java_org_godotengine_godot_GodotLib_onRendererResumed(JNIEnv *env, jclass clazz) {
+	if (step == 0)
+		return;
+
+	if (os_android->get_main_loop()) {
+		os_android->get_main_loop()->notification(MainLoop::NOTIFICATION_APP_RESUMED);
+	}
+}
+
+JNIEXPORT void JNICALL Java_org_godotengine_godot_GodotLib_onRendererPaused(JNIEnv *env, jclass clazz) {
+	if (step == 0)
+		return;
+
+	if (os_android->get_main_loop()) {
+		os_android->get_main_loop()->notification(MainLoop::NOTIFICATION_APP_PAUSED);
 	}
 }

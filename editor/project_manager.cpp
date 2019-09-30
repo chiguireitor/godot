@@ -195,7 +195,7 @@ private:
 					unzFile pkg = unzOpen2(valid_path.utf8().get_data(), &io);
 					if (!pkg) {
 
-						set_message(TTR("Error opening package file, not in zip format."), MESSAGE_ERROR);
+						set_message(TTR("Error opening package file, not in ZIP format."), MESSAGE_ERROR);
 						memdelete(d);
 						get_ok()->set_disabled(true);
 						unzClose(pkg);
@@ -519,7 +519,7 @@ private:
 					unzFile pkg = unzOpen2(zip_path.utf8().get_data(), &io);
 					if (!pkg) {
 
-						dialog_error->set_text(TTR("Error opening package file, not in zip format."));
+						dialog_error->set_text(TTR("Error opening package file, not in ZIP format."));
 						dialog_error->popup_centered_minsize();
 						return;
 					}
@@ -928,15 +928,35 @@ public:
 	TextureButton *favorite_button;
 	TextureRect *icon;
 	bool icon_needs_reload;
+	bool hover;
 
 	ProjectListItemControl() {
 		favorite_button = NULL;
 		icon = NULL;
 		icon_needs_reload = true;
+		hover = false;
 	}
 
 	void set_is_favorite(bool fav) {
 		favorite_button->set_modulate(fav ? Color(1, 1, 1, 1) : Color(1, 1, 1, 0.2));
+	}
+
+	void _notification(int p_what) {
+		switch (p_what) {
+			case NOTIFICATION_MOUSE_ENTER: {
+				hover = true;
+				update();
+			} break;
+			case NOTIFICATION_MOUSE_EXIT: {
+				hover = false;
+				update();
+			} break;
+			case NOTIFICATION_DRAW: {
+				if (hover) {
+					draw_style_box(get_stylebox("hover", "Tree"), Rect2(Point2(), get_size() - Size2(10, 0) * EDSCALE));
+				}
+			} break;
+		}
 	}
 };
 
@@ -946,10 +966,16 @@ public:
 	static const char *SIGNAL_SELECTION_CHANGED;
 	static const char *SIGNAL_PROJECT_ASK_OPEN;
 
+	enum MenuOptions {
+		GLOBAL_NEW_WINDOW,
+		GLOBAL_OPEN_PROJECT
+	};
+
 	// Can often be passed by copy
 	struct Item {
 		String project_key;
 		String project_name;
+		String description;
 		String path;
 		String icon;
 		String main_scene;
@@ -965,6 +991,7 @@ public:
 
 		Item(const String &p_project,
 				const String &p_name,
+				const String &p_description,
 				const String &p_path,
 				const String &p_icon,
 				const String &p_main_scene,
@@ -976,6 +1003,7 @@ public:
 
 			project_key = p_project;
 			project_name = p_name;
+			description = p_description;
 			path = p_path;
 			icon = p_icon;
 			main_scene = p_main_scene;
@@ -1144,6 +1172,7 @@ void ProjectList::load_project_data(const String &p_property_key, Item &p_item, 
 		grayed = true;
 	}
 
+	String description = cf->get_value("application", "config/description", "");
 	String icon = cf->get_value("application", "config/icon", "");
 	String main_scene = cf->get_value("application", "run/main_scene", "");
 
@@ -1165,7 +1194,7 @@ void ProjectList::load_project_data(const String &p_property_key, Item &p_item, 
 
 	String project_key = p_property_key.get_slice("/", 1);
 
-	p_item = Item(project_key, project_name, path, icon, main_scene, last_modified, p_favorite, grayed, missing, config_version);
+	p_item = Item(project_key, project_name, description, path, icon, main_scene, last_modified, p_favorite, grayed, missing, config_version);
 }
 
 void ProjectList::load_projects() {
@@ -1181,6 +1210,7 @@ void ProjectList::load_projects() {
 	_projects.clear();
 	_last_clicked = "";
 	_selected_project_keys.clear();
+	OS::get_singleton()->global_menu_clear("_dock");
 
 	// Load data
 	// TODO Would be nice to change how projects and favourites are stored... it complicates things a bit.
@@ -1218,6 +1248,9 @@ void ProjectList::load_projects() {
 		create_project_item_control(i);
 	}
 
+	OS::get_singleton()->global_menu_add_separator("_dock");
+	OS::get_singleton()->global_menu_add_item("_dock", TTR("New Window"), GLOBAL_NEW_WINDOW, Variant());
+
 	sort_projects();
 
 	set_v_scroll(0);
@@ -1240,12 +1273,15 @@ void ProjectList::create_project_item_control(int p_index) {
 	hb->connect("draw", this, "_panel_draw", varray(hb));
 	hb->connect("gui_input", this, "_panel_input", varray(hb));
 	hb->add_constant_override("separation", 10 * EDSCALE);
+	hb->set_tooltip(item.description);
 
 	VBoxContainer *favorite_box = memnew(VBoxContainer);
 	favorite_box->set_name("FavoriteBox");
 	TextureButton *favorite = memnew(TextureButton);
 	favorite->set_name("FavoriteButton");
 	favorite->set_normal_texture(favorite_icon);
+	// This makes the project's "hover" style display correctly when hovering the favorite icon
+	favorite->set_mouse_filter(MOUSE_FILTER_PASS);
 	favorite->connect("pressed", this, "_favorite_pressed", varray(hb));
 	favorite_box->add_child(favorite);
 	favorite_box->set_alignment(BoxContainer::ALIGN_CENTER);
@@ -1255,19 +1291,22 @@ void ProjectList::create_project_item_control(int p_index) {
 
 	TextureRect *tf = memnew(TextureRect);
 	tf->set_texture(get_icon("DefaultProjectIcon", "EditorIcons"));
+	if (item.missing) {
+		tf->set_modulate(Color(1, 1, 1, 0.5));
+	}
 	hb->add_child(tf);
 	hb->icon = tf;
 
 	VBoxContainer *vb = memnew(VBoxContainer);
 	if (item.grayed)
-		vb->set_modulate(Color(0.5, 0.5, 0.5));
+		vb->set_modulate(Color(1, 1, 1, 0.5));
 	vb->set_h_size_flags(SIZE_EXPAND_FILL);
 	hb->add_child(vb);
 	Control *ec = memnew(Control);
 	ec->set_custom_minimum_size(Size2(0, 1));
 	ec->set_mouse_filter(MOUSE_FILTER_PASS);
 	vb->add_child(ec);
-	Label *title = memnew(Label(item.project_name));
+	Label *title = memnew(Label(!item.missing ? item.project_name : TTR("Missing Project")));
 	title->add_font_override("font", get_font("title", "EditorFonts"));
 	title->add_color_override("font_color", font_color);
 	title->set_clip_text(true);
@@ -1278,12 +1317,21 @@ void ProjectList::create_project_item_control(int p_index) {
 	vb->add_child(path_hb);
 
 	Button *show = memnew(Button);
-	show->set_icon(get_icon("Load", "EditorIcons")); // Folder icon
+	// Display a folder icon if the project directory can be opened, or a "broken file" icon if it can't
+	show->set_icon(get_icon(!item.missing ? "Load" : "FileBroken", "EditorIcons"));
 	show->set_flat(true);
-	show->set_modulate(Color(1, 1, 1, 0.5));
+	if (!item.grayed) {
+		// Don't make the icon less prominent if the parent is already grayed out
+		show->set_modulate(Color(1, 1, 1, 0.5));
+	}
 	path_hb->add_child(show);
-	show->connect("pressed", this, "_show_project", varray(item.path));
-	show->set_tooltip(TTR("Show in File Manager"));
+
+	if (!item.missing) {
+		show->connect("pressed", this, "_show_project", varray(item.path));
+		show->set_tooltip(TTR("Show in File Manager"));
+	} else {
+		show->set_tooltip(TTR("Error: Project is missing on the filesystem."));
+	}
 
 	Label *fpath = memnew(Label(item.path));
 	path_hb->add_child(fpath);
@@ -1293,6 +1341,7 @@ void ProjectList::create_project_item_control(int p_index) {
 	fpath->set_clip_text(true);
 
 	_scroll_children->add_child(hb);
+	OS::get_singleton()->global_menu_add_item("_dock", item.project_name + " ( " + item.path + " )", GLOBAL_OPEN_PROJECT, Variant(item.path.plus_file("project.godot")));
 	item.control = hb;
 }
 
@@ -1640,7 +1689,7 @@ void ProjectList::_panel_input(const Ref<InputEvent> &p_ev, Node *p_hb) {
 
 		emit_signal(SIGNAL_SELECTION_CHANGED);
 
-		if (mb->is_doubleclick()) {
+		if (!mb->get_control() && mb->is_doubleclick()) {
 			emit_signal(SIGNAL_PROJECT_ASK_OPEN);
 		}
 	}
@@ -1708,6 +1757,12 @@ void ProjectManager::_notification(int p_what) {
 
 			if (_project_list->get_project_count() == 0 && StreamPeerSSL::is_available())
 				open_templates->popup_centered_minsize();
+
+			if (_project_list->get_project_count() >= 1) {
+				// Focus on the search box immediately to allow the user
+				// to search without having to reach for their mouse
+				project_filter->search_box->grab_focus();
+			}
 		} break;
 		case NOTIFICATION_VISIBILITY_CHANGED: {
 
@@ -1727,7 +1782,7 @@ void ProjectManager::_dim_window() {
 
 	// Dim the project manager window while it's quitting to make it clearer that it's busy.
 	// No transition is applied, as the effect needs to be visible immediately
-	float c = 0.4f;
+	float c = 0.5f;
 	Color dim_color = Color(c, c, c);
 	gui_base->set_modulate(dim_color);
 }
@@ -1737,10 +1792,18 @@ void ProjectManager::_update_project_buttons() {
 	Vector<ProjectList::Item> selected_projects = _project_list->get_selected_projects();
 	bool empty_selection = selected_projects.empty();
 
+	bool is_missing_project_selected = false;
+	for (int i = 0; i < selected_projects.size(); ++i) {
+		if (selected_projects[i].missing) {
+			is_missing_project_selected = true;
+			break;
+		}
+	}
+
 	erase_btn->set_disabled(empty_selection);
-	open_btn->set_disabled(empty_selection);
-	rename_btn->set_disabled(empty_selection);
-	run_btn->set_disabled(empty_selection);
+	open_btn->set_disabled(empty_selection || is_missing_project_selected);
+	rename_btn->set_disabled(empty_selection || is_missing_project_selected);
+	run_btn->set_disabled(empty_selection || is_missing_project_selected);
 
 	erase_missing_btn->set_visible(_project_list->is_any_project_missing());
 }
@@ -1802,7 +1865,7 @@ void ProjectManager::_unhandled_input(const Ref<InputEvent> &p_ev) {
 					break;
 
 				int index = _project_list->get_single_selected_index();
-				if (index - 1 > 0) {
+				if (index > 0) {
 					_project_list->select_project(index - 1);
 					_project_list->ensure_project_visible(index - 1);
 					_update_project_buttons();
@@ -1874,6 +1937,29 @@ void ProjectManager::_confirm_update_settings() {
 	_open_selected_projects();
 }
 
+void ProjectManager::_global_menu_action(const Variant &p_id, const Variant &p_meta) {
+
+	int id = (int)p_id;
+	if (id == ProjectList::GLOBAL_NEW_WINDOW) {
+		List<String> args;
+		String exec = OS::get_singleton()->get_executable_path();
+
+		OS::ProcessID pid = 0;
+		OS::get_singleton()->execute(exec, args, false, &pid);
+	} else if (id == ProjectList::GLOBAL_OPEN_PROJECT) {
+		String conf = (String)p_meta;
+
+		if (conf != String()) {
+			List<String> args;
+			args.push_back(conf);
+			String exec = OS::get_singleton()->get_executable_path();
+
+			OS::ProcessID pid = 0;
+			OS::get_singleton()->execute(exec, args, false, &pid);
+		}
+	}
+}
+
 void ProjectManager::_open_selected_projects() {
 
 	const Set<String> &selected_list = _project_list->get_selected_project_keys();
@@ -1928,6 +2014,9 @@ void ProjectManager::_open_selected_projects_ask() {
 	}
 
 	ProjectList::Item project = _project_list->get_selected_projects()[0];
+	if (project.missing) {
+		return;
+	}
 
 	// Update the project settings or don't open
 	String conf = project.path.plus_file("project.godot");
@@ -2110,7 +2199,7 @@ void ProjectManager::_erase_project() {
 
 void ProjectManager::_erase_missing_projects() {
 
-	erase_missing_ask->set_text(TTR("Remove all missing projects from the list? (Folders contents will not be modified)"));
+	erase_missing_ask->set_text(TTR("Remove all missing projects from the list?\nThe project folders' contents won't be modified."));
 	erase_missing_ask->popup_centered_minsize();
 }
 
@@ -2213,6 +2302,7 @@ void ProjectManager::_bind_methods() {
 
 	ClassDB::bind_method("_open_selected_projects_ask", &ProjectManager::_open_selected_projects_ask);
 	ClassDB::bind_method("_open_selected_projects", &ProjectManager::_open_selected_projects);
+	ClassDB::bind_method(D_METHOD("_global_menu_action"), &ProjectManager::_global_menu_action, DEFVAL(Variant()));
 	ClassDB::bind_method("_run_project", &ProjectManager::_run_project);
 	ClassDB::bind_method("_run_project_confirm", &ProjectManager::_run_project_confirm);
 	ClassDB::bind_method("_scan_projects", &ProjectManager::_scan_projects);
@@ -2538,6 +2628,7 @@ ProjectManager::ProjectManager() {
 	}
 
 	SceneTree::get_singleton()->connect("files_dropped", this, "_files_dropped");
+	SceneTree::get_singleton()->connect("global_menu_action", this, "_global_menu_action");
 
 	run_error_diag = memnew(AcceptDialog);
 	gui_base->add_child(run_error_diag);

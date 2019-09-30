@@ -193,14 +193,15 @@ public:
 	void set_icon_region(int p_column, const Rect2 &p_icon_region);
 	Rect2 get_icon_region(int p_column) const;
 
-	void set_icon_color(int p_column, const Color &p_icon_color);
-	Color get_icon_color(int p_column) const;
+	void set_icon_modulate(int p_column, const Color &p_modulate);
+	Color get_icon_modulate(int p_column) const;
 
 	void set_icon_max_width(int p_column, int p_max);
 	int get_icon_max_width(int p_column) const;
 
 	void add_button(int p_column, const Ref<Texture> &p_button, int p_id = -1, bool p_disabled = false, const String &p_tooltip = "");
 	int get_button_count(int p_column) const;
+	String get_button_tooltip(int p_column, int p_idx) const;
 	Ref<Texture> get_button(int p_column, int p_idx) const;
 	int get_button_id(int p_column, int p_idx) const;
 	void erase_button(int p_column, int p_idx);
@@ -416,7 +417,6 @@ private:
 		Ref<Texture> arrow_collapsed;
 		Ref<Texture> arrow;
 		Ref<Texture> select_arrow;
-		Ref<Texture> select_option;
 		Ref<Texture> updown;
 
 		Color font_color;
@@ -429,7 +429,6 @@ private:
 		int hseparation;
 		int vseparation;
 		int item_margin;
-		int guide_width;
 		int button_margin;
 		Point2 offset;
 		int draw_relationship_lines;

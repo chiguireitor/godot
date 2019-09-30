@@ -176,6 +176,86 @@ Error TileSetEditor::update_library_file(Node *p_base_scene, Ref<TileSet> ml, bo
 	return OK;
 }
 
+Variant TileSetEditor::get_drag_data_fw(const Point2 &p_point, Control *p_from) {
+
+	return false;
+}
+
+bool TileSetEditor::can_drop_data_fw(const Point2 &p_point, const Variant &p_data, Control *p_from) const {
+
+	Dictionary d = p_data;
+
+	if (!d.has("type"))
+		return false;
+
+	if (d.has("from") && (Object *)(d["from"]) == texture_list)
+		return false;
+
+	if (String(d["type"]) == "resource" && d.has("resource")) {
+		RES r = d["resource"];
+
+		Ref<Texture> texture = r;
+
+		if (texture.is_valid()) {
+
+			return true;
+		}
+	}
+
+	if (String(d["type"]) == "files") {
+
+		Vector<String> files = d["files"];
+
+		if (files.size() == 0)
+			return false;
+
+		for (int i = 0; i < files.size(); i++) {
+			String file = files[i];
+			String ftype = EditorFileSystem::get_singleton()->get_file_type(file);
+
+			if (!ClassDB::is_parent_class(ftype, "Texture")) {
+				return false;
+			}
+		}
+
+		return true;
+	}
+	return false;
+}
+
+void TileSetEditor::drop_data_fw(const Point2 &p_point, const Variant &p_data, Control *p_from) {
+
+	if (!can_drop_data_fw(p_point, p_data, p_from))
+		return;
+
+	Dictionary d = p_data;
+
+	if (!d.has("type"))
+		return;
+
+	if (String(d["type"]) == "resource" && d.has("resource")) {
+		RES r = d["resource"];
+
+		Ref<Texture> texture = r;
+
+		if (texture.is_valid())
+			add_texture(texture);
+
+		if (texture_list->get_item_count() > 0) {
+			update_texture_list_icon();
+			texture_list->select(texture_list->get_item_count() - 1);
+			_on_texture_list_selected(texture_list->get_item_count() - 1);
+		}
+	}
+
+	if (String(d["type"]) == "files") {
+
+		PoolVector<String> files = d["files"];
+
+		_on_textures_added(files);
+	}
+}
+
 void TileSetEditor::_bind_methods() {
 
 	ClassDB::bind_method("_undo_redo_import_scene", &TileSetEditor::_undo_redo_import_scene);
@@ -202,6 +282,10 @@ void TileSetEditor::_bind_methods() {
 	ClassDB::bind_method("_zoom_reset", &TileSetEditor::_zoom_reset);
 	ClassDB::bind_method("_select_edited_shape_coord", &TileSetEditor::_select_edited_shape_coord);
 	ClassDB::bind_method("_sort_tiles", &TileSetEditor::_sort_tiles);
+
+	ClassDB::bind_method(D_METHOD("get_drag_data_fw"), &TileSetEditor::get_drag_data_fw);
+	ClassDB::bind_method(D_METHOD("can_drop_data_fw"), &TileSetEditor::can_drop_data_fw);
+	ClassDB::bind_method(D_METHOD("drop_data_fw"), &TileSetEditor::drop_data_fw);
 
 	ClassDB::bind_method("edit", &TileSetEditor::edit);
 	ClassDB::bind_method("add_texture", &TileSetEditor::add_texture);
@@ -274,6 +358,7 @@ TileSetEditor::TileSetEditor(EditorNode *p_editor) {
 	texture_list->set_v_size_flags(SIZE_EXPAND_FILL);
 	texture_list->set_custom_minimum_size(Size2(200, 0));
 	texture_list->connect("item_selected", this, "_on_texture_list_selected");
+	texture_list->set_drag_forwarding(this);
 
 	HBoxContainer *tileset_toolbar_container = memnew(HBoxContainer);
 	left_container->add_child(tileset_toolbar_container);
@@ -494,6 +579,14 @@ TileSetEditor::TileSetEditor(EditorNode *p_editor) {
 	scroll->set_v_size_flags(SIZE_EXPAND_FILL);
 	scroll->set_clip_contents(true);
 
+	empty_message = memnew(Label);
+	empty_message->set_text(TTR("Add or select a texture on the left panel to edit the tiles bound to it."));
+	empty_message->set_valign(Label::VALIGN_CENTER);
+	empty_message->set_align(Label::ALIGN_CENTER);
+	empty_message->set_autowrap(true);
+	empty_message->set_v_size_flags(SIZE_EXPAND_FILL);
+	main_vb->add_child(empty_message);
+
 	workspace_container = memnew(Control);
 	scroll->add_child(workspace_container);
 
@@ -542,7 +635,7 @@ TileSetEditor::TileSetEditor(EditorNode *p_editor) {
 	helper = memnew(TilesetEditorContext(this));
 	tile_names_visible = false;
 
-	// config scale
+	// Config scale.
 	max_scale = 10.0f;
 	min_scale = 0.1f;
 	scale_ratio = 1.2f;
@@ -3038,12 +3131,28 @@ void TileSetEditor::update_workspace_tile_mode() {
 		}
 		tools[SELECT_NEXT]->set_disabled(true);
 		tools[SELECT_PREVIOUS]->set_disabled(true);
+
+		tools[ZOOM_OUT]->hide();
+		tools[ZOOM_1]->hide();
+		tools[ZOOM_IN]->hide();
+		tools[VISIBLE_INFO]->hide();
+
+		scroll->hide();
+		empty_message->show();
 	} else {
 		for (int i = 1; i < WORKSPACE_MODE_MAX; i++) {
 			tool_workspacemode[i]->set_disabled(false);
 		}
 		tools[SELECT_NEXT]->set_disabled(false);
 		tools[SELECT_PREVIOUS]->set_disabled(false);
+
+		tools[ZOOM_OUT]->show();
+		tools[ZOOM_1]->show();
+		tools[ZOOM_IN]->show();
+		tools[VISIBLE_INFO]->show();
+
+		scroll->show();
+		empty_message->hide();
 	}
 
 	if (workspace_mode != WORKSPACE_EDIT) {

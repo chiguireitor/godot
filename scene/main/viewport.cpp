@@ -98,22 +98,22 @@ NodePath ViewportTexture::get_viewport_path_in_scene() const {
 
 int ViewportTexture::get_width() const {
 
-	ERR_FAIL_COND_V(!vp, 0);
+	ERR_FAIL_COND_V_MSG(!vp, 0, "Viewport Texture must be set to use it.");
 	return vp->size.width;
 }
 int ViewportTexture::get_height() const {
 
-	ERR_FAIL_COND_V(!vp, 0);
+	ERR_FAIL_COND_V_MSG(!vp, 0, "Viewport Texture must be set to use it.");
 	return vp->size.height;
 }
 Size2 ViewportTexture::get_size() const {
 
-	ERR_FAIL_COND_V(!vp, Size2());
+	ERR_FAIL_COND_V_MSG(!vp, Size2(), "Viewport Texture must be set to use it.");
 	return vp->size;
 }
 RID ViewportTexture::get_rid() const {
 
-	//ERR_FAIL_COND_V(!vp, RID());
+	//ERR_FAIL_COND_V_MSG(!vp, RID(), "Viewport Texture must be set to use it.");
 	return proxy;
 }
 
@@ -123,7 +123,7 @@ bool ViewportTexture::has_alpha() const {
 }
 Ref<Image> ViewportTexture::get_data() const {
 
-	ERR_FAIL_COND_V(!vp, Ref<Image>());
+	ERR_FAIL_COND_V_MSG(!vp, Ref<Image>(), "Viewport Texture must be set to use it.");
 	return VS::get_singleton()->texture_get_data(vp->texture_rid);
 }
 void ViewportTexture::set_flags(uint32_t p_flags) {
@@ -1742,6 +1742,12 @@ void Viewport::_gui_input_event(Ref<InputEvent> p_event) {
 							return; // no one gets the event if exclusive NO ONE
 						}
 
+						if (mb->get_button_index() == BUTTON_WHEEL_UP || mb->get_button_index() == BUTTON_WHEEL_DOWN || mb->get_button_index() == BUTTON_WHEEL_LEFT || mb->get_button_index() == BUTTON_WHEEL_RIGHT) {
+							//cancel scroll wheel events, only clicks should trigger focus changes.
+							set_input_as_handled();
+							return;
+						}
+
 						top->notification(Control::NOTIFICATION_MODAL_CLOSE);
 						top->_modal_stack_remove();
 						top->hide();
@@ -2289,32 +2295,34 @@ void Viewport::_gui_input_event(Ref<InputEvent> p_event) {
 		if (from && p_event->is_pressed()) {
 			Control *next = NULL;
 
-			if (p_event->is_action_pressed("ui_focus_next")) {
+			Input *input = Input::get_singleton();
+
+			if (p_event->is_action_pressed("ui_focus_next") && input->is_action_just_pressed("ui_focus_next")) {
 
 				next = from->find_next_valid_focus();
 			}
 
-			if (p_event->is_action_pressed("ui_focus_prev")) {
+			if (p_event->is_action_pressed("ui_focus_prev") && input->is_action_just_pressed("ui_focus_prev")) {
 
 				next = from->find_prev_valid_focus();
 			}
 
-			if (!mods && p_event->is_action_pressed("ui_up")) {
+			if (!mods && p_event->is_action_pressed("ui_up") && input->is_action_just_pressed("ui_up")) {
 
 				next = from->_get_focus_neighbour(MARGIN_TOP);
 			}
 
-			if (!mods && p_event->is_action_pressed("ui_left")) {
+			if (!mods && p_event->is_action_pressed("ui_left") && input->is_action_just_pressed("ui_left")) {
 
 				next = from->_get_focus_neighbour(MARGIN_LEFT);
 			}
 
-			if (!mods && p_event->is_action_pressed("ui_right")) {
+			if (!mods && p_event->is_action_pressed("ui_right") && input->is_action_just_pressed("ui_right")) {
 
 				next = from->_get_focus_neighbour(MARGIN_RIGHT);
 			}
 
-			if (!mods && p_event->is_action_pressed("ui_down")) {
+			if (!mods && p_event->is_action_pressed("ui_down") && input->is_action_just_pressed("ui_down")) {
 
 				next = from->_get_focus_neighbour(MARGIN_BOTTOM);
 			}

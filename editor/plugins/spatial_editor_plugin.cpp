@@ -74,14 +74,6 @@
 #define MIN_FOV 0.01
 #define MAX_FOV 179
 
-#ifdef TOOLS_ENABLED
-#define get_global_gizmo_transform get_global_gizmo_transform
-#define get_local_gizmo_transform get_local_gizmo_transform
-#else
-#define get_global_gizmo_transform get_global_transform
-#define get_local_gizmo_transform get_transform
-#endif
-
 void SpatialEditorViewport::_update_camera(float p_interp_delta) {
 
 	bool is_orthogonal = camera->get_projection() == Camera::PROJECTION_ORTHOGONAL;
@@ -2312,7 +2304,7 @@ void SpatialEditorViewport::_notification(int p_what) {
 
 	if (p_what == NOTIFICATION_THEME_CHANGED) {
 
-		view_menu->set_icon(get_icon("GuiMiniTabMenu", "EditorIcons"));
+		view_menu->set_icon(get_icon("GuiTabMenu", "EditorIcons"));
 		preview_camera->set_icon(get_icon("Camera", "EditorIcons"));
 
 		view_menu->add_style_override("normal", editor->get_gui_base()->get_stylebox("Information3dViewport", "EditorStyles"));
@@ -3238,6 +3230,7 @@ void SpatialEditorViewport::_create_preview(const Vector<String> &files) const {
 	for (int i = 0; i < files.size(); i++) {
 		String path = files[i];
 		RES res = ResourceLoader::load(path);
+		ERR_CONTINUE(res.is_null());
 		Ref<PackedScene> scene = Ref<PackedScene>(Object::cast_to<PackedScene>(*res));
 		Ref<Mesh> mesh = Ref<Mesh>(Object::cast_to<Mesh>(*res));
 		if (mesh != NULL || scene != NULL) {
@@ -3287,6 +3280,7 @@ bool SpatialEditorViewport::_cyclical_dependency_exists(const String &p_target_s
 
 bool SpatialEditorViewport::_create_instance(Node *parent, String &path, const Point2 &p_point) {
 	RES res = ResourceLoader::load(path);
+	ERR_FAIL_COND_V(res.is_null(), false);
 
 	Ref<PackedScene> scene = Ref<PackedScene>(Object::cast_to<PackedScene>(*res));
 	Ref<Mesh> mesh = Ref<Mesh>(Object::cast_to<Mesh>(*res));
@@ -4069,7 +4063,9 @@ void _update_all_gizmos(Node *p_node) {
 }
 
 void SpatialEditor::update_all_gizmos(Node *p_node) {
-	if (!p_node) p_node = SceneTree::get_singleton()->get_root();
+	if (!p_node) {
+		p_node = SceneTree::get_singleton()->get_root();
+	}
 	_update_all_gizmos(p_node);
 }
 
@@ -4086,23 +4082,6 @@ Object *SpatialEditor::_get_editor_data(Object *p_what) {
 	VS::get_singleton()->instance_geometry_set_cast_shadows_setting(si->sbox_instance, VS::SHADOW_CASTING_SETTING_OFF);
 
 	return si;
-}
-
-Color SpatialEditor::_get_axis_color(int axis) {
-
-	switch (axis) {
-		case 0:
-			// X axis
-			return Color(0.96, 0.20, 0.32);
-		case 1:
-			// Y axis
-			return Color(0.53, 0.84, 0.01);
-		case 2:
-			// Z axis
-			return Color(0.16, 0.55, 0.96);
-		default:
-			return Color(0, 0, 0);
-	}
 }
 
 void SpatialEditor::_generate_selection_box() {
@@ -4656,7 +4635,21 @@ void SpatialEditor::_init_indicators() {
 		for (int i = 0; i < 3; i++) {
 			Vector3 axis;
 			axis[i] = 1;
-			Color origin_color = _get_axis_color(i);
+			Color origin_color;
+			switch (i) {
+				case 0:
+					origin_color = get_color("axis_x_color", "Editor");
+					break;
+				case 1:
+					origin_color = get_color("axis_y_color", "Editor");
+					break;
+				case 2:
+					origin_color = get_color("axis_z_color", "Editor");
+					break;
+				default:
+					origin_color = Color();
+					break;
+			}
 
 			grid_enable[i] = false;
 			grid_visible[i] = false;
@@ -4693,7 +4686,22 @@ void SpatialEditor::_init_indicators() {
 
 		for (int i = 0; i < 3; i++) {
 
-			Color col = _get_axis_color(i);
+			Color col;
+			switch (i) {
+				case 0:
+					col = get_color("axis_x_color", "Editor");
+					break;
+				case 1:
+					col = get_color("axis_y_color", "Editor");
+					break;
+				case 2:
+					col = get_color("axis_z_color", "Editor");
+					break;
+				default:
+					col = Color();
+					break;
+			}
+
 			col.a = EditorSettings::get_singleton()->get("editors/3d/manipulator_gizmo_opacity");
 
 			move_gizmo[i] = Ref<ArrayMesh>(memnew(ArrayMesh));
@@ -5194,7 +5202,7 @@ void SpatialEditor::snap_selected_nodes_to_floor() {
 	// The maximum height an object can travel to be snapped
 	const float max_snap_height = 20.0;
 
-	// Will be set to `true` if at least one node from the selection was sucessfully snapped
+	// Will be set to `true` if at least one node from the selection was successfully snapped
 	bool snapped_to_floor = false;
 
 	if (keys.size()) {
@@ -5298,6 +5306,10 @@ void SpatialEditor::_notification(int p_what) {
 		tool_button[SpatialEditor::TOOL_MODE_ROTATE]->set_icon(get_icon("ToolRotate", "EditorIcons"));
 		tool_button[SpatialEditor::TOOL_MODE_SCALE]->set_icon(get_icon("ToolScale", "EditorIcons"));
 		tool_button[SpatialEditor::TOOL_MODE_LIST_SELECT]->set_icon(get_icon("ListSelect", "EditorIcons"));
+		tool_button[SpatialEditor::TOOL_LOCK_SELECTED]->set_icon(get_icon("Lock", "EditorIcons"));
+		tool_button[SpatialEditor::TOOL_UNLOCK_SELECTED]->set_icon(get_icon("Unlock", "EditorIcons"));
+		tool_button[SpatialEditor::TOOL_GROUP_SELECTED]->set_icon(get_icon("Group", "EditorIcons"));
+		tool_button[SpatialEditor::TOOL_UNGROUP_SELECTED]->set_icon(get_icon("Ungroup", "EditorIcons"));
 
 		tool_option_button[SpatialEditor::TOOL_OPT_LOCAL_COORDS]->set_icon(get_icon("Object", "EditorIcons"));
 		tool_option_button[SpatialEditor::TOOL_OPT_USE_SNAP]->set_icon(get_icon("Snap", "EditorIcons"));
@@ -6258,5 +6270,7 @@ EditorSpatialGizmoPlugin::~EditorSpatialGizmoPlugin() {
 		current_gizmos[i]->set_plugin(NULL);
 		current_gizmos[i]->get_spatial_node()->set_gizmo(NULL);
 	}
-	SpatialEditor::get_singleton()->update_all_gizmos();
+	if (SpatialEditor::get_singleton()) {
+		SpatialEditor::get_singleton()->update_all_gizmos();
+	}
 }

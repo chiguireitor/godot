@@ -30,11 +30,11 @@
 
 #include "editor_export.h"
 
+#include "core/crypto/crypto_core.h"
 #include "core/io/config_file.h"
 #include "core/io/resource_loader.h"
 #include "core/io/resource_saver.h"
 #include "core/io/zip_io.h"
-#include "core/math/crypto_core.h"
 #include "core/os/dir_access.h"
 #include "core/os/file_access.h"
 #include "core/project_settings.h"
@@ -148,6 +148,12 @@ String EditorExportPreset::get_include_filter() const {
 void EditorExportPreset::set_export_path(const String &p_path) {
 
 	export_path = p_path;
+	/* NOTE(SonerSound): if there is a need to implement a PropertyHint that specifically indicates a relative path,
+	 * this should be removed. */
+	if (export_path.is_abs_path()) {
+		String res_path = OS::get_singleton()->get_resource_dir();
+		export_path = res_path.path_to_file(export_path);
+	}
 	EditorExport::singleton->save_presets();
 }
 
@@ -907,7 +913,7 @@ Error EditorExportPlatform::save_pack(const Ref<EditorExportPreset> &p_preset, c
 
 	String tmppath = EditorSettings::get_singleton()->get_cache_dir().plus_file("packtmp");
 	FileAccess *ftmp = FileAccess::open(tmppath, FileAccess::WRITE);
-	ERR_FAIL_COND_V(!ftmp, ERR_CANT_CREATE);
+	ERR_FAIL_COND_V_MSG(!ftmp, ERR_CANT_CREATE, "Cannot create file '" + tmppath + "'.");
 
 	PackData pd;
 	pd.ep = &ep;
@@ -1011,7 +1017,7 @@ Error EditorExportPlatform::save_pack(const Ref<EditorExportPreset> &p_preset, c
 	if (!ftmp) {
 		memdelete(f);
 		DirAccess::remove_file_or_error(tmppath);
-		ERR_FAIL_V_MSG(ERR_CANT_CREATE, "Can't open file to read from path: " + String(tmppath) + ".");
+		ERR_FAIL_V_MSG(ERR_CANT_CREATE, "Can't open file to read from path '" + String(tmppath) + "'.");
 	}
 
 	const int bufsize = 16384;

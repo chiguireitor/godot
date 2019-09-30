@@ -50,7 +50,7 @@
 #endif
 
 void PluginScript::_bind_methods() {
-	ClassDB::bind_vararg_method(METHOD_FLAGS_DEFAULT, "new", &PluginScript::_new, MethodInfo(Variant::OBJECT, "new"));
+	ClassDB::bind_vararg_method(METHOD_FLAGS_DEFAULT, "new", &PluginScript::_new, MethodInfo("new"));
 }
 
 PluginScriptInstance *PluginScript::_create_instance(const Variant **p_args, int p_argcount, Object *p_owner, Variant::CallError &r_error) {
@@ -401,9 +401,7 @@ Error PluginScript::load_source_code(const String &p_path) {
 	PoolVector<uint8_t> sourcef;
 	Error err;
 	FileAccess *f = FileAccess::open(p_path, FileAccess::READ, &err);
-	if (err) {
-		ERR_FAIL_COND_V(err, err);
-	}
+	ERR_FAIL_COND_V_MSG(err, err, "Cannot open file '" + p_path + "'.");
 
 	int len = f->get_len();
 	sourcef.resize(len + 1);

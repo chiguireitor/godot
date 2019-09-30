@@ -353,6 +353,11 @@ String ShaderCompilerGLES2::_dump_node_code(SL::Node *p_node, int p_level, Gener
 				varying_code += _typestr(E->get().type);
 				varying_code += " ";
 				varying_code += _mkid(E->key());
+				if (E->get().array_size > 0) {
+					varying_code += "[";
+					varying_code += itos(E->get().array_size);
+					varying_code += "]";
+				}
 				varying_code += ";\n";
 
 				String final_code = varying_code.as_string();
@@ -804,6 +809,15 @@ String ShaderCompilerGLES2::_dump_node_code(SL::Node *p_node, int p_level, Gener
 					code += "else\n";
 					code += _dump_node_code(cf_node->blocks[1], p_level + 1, r_gen_code, p_actions, p_default_actions, p_assigning);
 				}
+			} else if (cf_node->flow_op == SL::FLOW_OP_SWITCH) {
+				code += _mktab(p_level) + "switch (" + _dump_node_code(cf_node->expressions[0], p_level, r_gen_code, p_actions, p_default_actions, p_assigning) + ")\n";
+				code += _dump_node_code(cf_node->blocks[0], p_level + 1, r_gen_code, p_actions, p_default_actions, p_assigning);
+			} else if (cf_node->flow_op == SL::FLOW_OP_CASE) {
+				code += _mktab(p_level) + "case " + _dump_node_code(cf_node->expressions[0], p_level, r_gen_code, p_actions, p_default_actions, p_assigning) + ":\n";
+				code += _dump_node_code(cf_node->blocks[0], p_level + 1, r_gen_code, p_actions, p_default_actions, p_assigning);
+			} else if (cf_node->flow_op == SL::FLOW_OP_DEFAULT) {
+				code += _mktab(p_level) + "default:\n";
+				code += _dump_node_code(cf_node->blocks[0], p_level + 1, r_gen_code, p_actions, p_default_actions, p_assigning);
 			} else if (cf_node->flow_op == SL::FLOW_OP_DO) {
 				code += _mktab(p_level);
 				code += "do";
@@ -910,7 +924,7 @@ ShaderCompilerGLES2::ShaderCompilerGLES2() {
 
 	actions[VS::SHADER_CANVAS_ITEM].renames["WORLD_MATRIX"] = "modelview_matrix";
 	actions[VS::SHADER_CANVAS_ITEM].renames["PROJECTION_MATRIX"] = "projection_matrix";
-	actions[VS::SHADER_CANVAS_ITEM].renames["EXTRA_MATRIX"] = "extra_matrix";
+	actions[VS::SHADER_CANVAS_ITEM].renames["EXTRA_MATRIX"] = "extra_matrix_instance";
 	actions[VS::SHADER_CANVAS_ITEM].renames["TIME"] = "time";
 	actions[VS::SHADER_CANVAS_ITEM].renames["AT_LIGHT_PASS"] = "at_light_pass";
 	actions[VS::SHADER_CANVAS_ITEM].renames["INSTANCE_CUSTOM"] = "instance_custom";
@@ -934,6 +948,7 @@ ShaderCompilerGLES2::ShaderCompilerGLES2() {
 	actions[VS::SHADER_CANVAS_ITEM].renames["LIGHT_UV"] = "light_uv";
 	actions[VS::SHADER_CANVAS_ITEM].renames["LIGHT"] = "light";
 	actions[VS::SHADER_CANVAS_ITEM].renames["SHADOW_COLOR"] = "shadow_color";
+	actions[VS::SHADER_CANVAS_ITEM].renames["SHADOW_VEC"] = "shadow_vec";
 
 	actions[VS::SHADER_CANVAS_ITEM].usage_defines["COLOR"] = "#define COLOR_USED\n";
 	actions[VS::SHADER_CANVAS_ITEM].usage_defines["SCREEN_TEXTURE"] = "#define SCREEN_TEXTURE_USED\n";
@@ -943,6 +958,7 @@ ShaderCompilerGLES2::ShaderCompilerGLES2() {
 	actions[VS::SHADER_CANVAS_ITEM].usage_defines["NORMALMAP"] = "#define NORMALMAP_USED\n";
 	actions[VS::SHADER_CANVAS_ITEM].usage_defines["LIGHT"] = "#define USE_LIGHT_SHADER_CODE\n";
 	actions[VS::SHADER_CANVAS_ITEM].render_mode_defines["skip_vertex_transform"] = "#define SKIP_TRANSFORM_USED\n";
+	actions[VS::SHADER_CANVAS_ITEM].usage_defines["SHADOW_VEC"] = "#define SHADOW_VEC_USED\n";
 
 	// Ported from GLES3
 
@@ -957,6 +973,7 @@ ShaderCompilerGLES2::ShaderCompilerGLES2() {
 	actions[VS::SHADER_CANVAS_ITEM].usage_defines["outerProduct"] = "#define OUTER_PRODUCT_USED\n";
 	actions[VS::SHADER_CANVAS_ITEM].usage_defines["round"] = "#define ROUND_USED\n";
 	actions[VS::SHADER_CANVAS_ITEM].usage_defines["roundEven"] = "#define ROUND_EVEN_USED\n";
+	actions[VS::SHADER_CANVAS_ITEM].usage_defines["inverse"] = "#define INVERSE_USED\n";
 	actions[VS::SHADER_CANVAS_ITEM].usage_defines["isinf"] = "#define IS_INF_USED\n";
 	actions[VS::SHADER_CANVAS_ITEM].usage_defines["isnan"] = "#define IS_NAN_USED\n";
 	actions[VS::SHADER_CANVAS_ITEM].usage_defines["trunc"] = "#define TRUNC_USED\n";
@@ -1066,6 +1083,7 @@ ShaderCompilerGLES2::ShaderCompilerGLES2() {
 	actions[VS::SHADER_SPATIAL].usage_defines["outerProduct"] = "#define OUTER_PRODUCT_USED\n";
 	actions[VS::SHADER_SPATIAL].usage_defines["round"] = "#define ROUND_USED\n";
 	actions[VS::SHADER_SPATIAL].usage_defines["roundEven"] = "#define ROUND_EVEN_USED\n";
+	actions[VS::SHADER_SPATIAL].usage_defines["inverse"] = "#define INVERSE_USED\n";
 	actions[VS::SHADER_SPATIAL].usage_defines["isinf"] = "#define IS_INF_USED\n";
 	actions[VS::SHADER_SPATIAL].usage_defines["isnan"] = "#define IS_NAN_USED\n";
 	actions[VS::SHADER_SPATIAL].usage_defines["trunc"] = "#define TRUNC_USED\n";

@@ -30,6 +30,7 @@
 
 #include "main.h"
 
+#include "core/crypto/crypto.h"
 #include "core/input_map.h"
 #include "core/io/file_access_network.h"
 #include "core/io/file_access_pack.h"
@@ -37,8 +38,6 @@
 #include "core/io/image_loader.h"
 #include "core/io/ip.h"
 #include "core/io/resource_loader.h"
-#include "core/io/stream_peer_ssl.h"
-#include "core/io/stream_peer_tcp.h"
 #include "core/message_queue.h"
 #include "core/os/dir_access.h"
 #include "core/os/os.h"
@@ -387,6 +386,7 @@ Error Main::setup(const char *execpath, int argc, char *argv[], bool p_second_ph
 	bool upwards = false;
 	String debug_mode;
 	String debug_host;
+	bool skip_breakpoints = false;
 	String main_pack;
 	bool quiet_stdout = false;
 	int rtm = -1;
@@ -444,6 +444,32 @@ Error Main::setup(const char *execpath, int argc, char *argv[], bool p_second_ph
 			if (I->next()) {
 
 				audio_driver = I->next()->get();
+
+				bool found = false;
+				for (int i = 0; i < OS::get_singleton()->get_audio_driver_count(); i++) {
+					if (audio_driver == OS::get_singleton()->get_audio_driver_name(i)) {
+						found = true;
+					}
+				}
+
+				if (!found) {
+					OS::get_singleton()->print("Unknown audio driver '%s', aborting.\nValid options are ", audio_driver.utf8().get_data());
+
+					for (int i = 0; i < OS::get_singleton()->get_audio_driver_count(); i++) {
+						if (i == OS::get_singleton()->get_audio_driver_count() - 1) {
+							OS::get_singleton()->print(" and ");
+						} else if (i != 0) {
+							OS::get_singleton()->print(", ");
+						}
+
+						OS::get_singleton()->print("'%s'", OS::get_singleton()->get_audio_driver_name(i));
+					}
+
+					OS::get_singleton()->print(".\n");
+
+					goto error;
+				}
+
 				N = I->next()->next();
 			} else {
 				OS::get_singleton()->print("Missing audio driver argument, aborting.\n");
@@ -455,6 +481,32 @@ Error Main::setup(const char *execpath, int argc, char *argv[], bool p_second_ph
 			if (I->next()) {
 
 				video_driver = I->next()->get();
+
+				bool found = false;
+				for (int i = 0; i < OS::get_singleton()->get_video_driver_count(); i++) {
+					if (video_driver == OS::get_singleton()->get_video_driver_name(i)) {
+						found = true;
+					}
+				}
+
+				if (!found) {
+					OS::get_singleton()->print("Unknown video driver '%s', aborting.\nValid options are ", video_driver.utf8().get_data());
+
+					for (int i = 0; i < OS::get_singleton()->get_video_driver_count(); i++) {
+						if (i == OS::get_singleton()->get_video_driver_count() - 1) {
+							OS::get_singleton()->print(" and ");
+						} else if (i != 0) {
+							OS::get_singleton()->print(", ");
+						}
+
+						OS::get_singleton()->print("'%s'", OS::get_singleton()->get_video_driver_name(i));
+					}
+
+					OS::get_singleton()->print(".\n");
+
+					goto error;
+				}
+
 				N = I->next()->next();
 			} else {
 				OS::get_singleton()->print("Missing video driver argument, aborting.\n");
@@ -599,6 +651,14 @@ Error Main::setup(const char *execpath, int argc, char *argv[], bool p_second_ph
 
 			auto_build_solutions = true;
 			editor = true;
+#ifdef DEBUG_METHODS_ENABLED
+		} else if (I->get() == "--gdnative-generate-json-api") {
+			// Register as an editor instance to use the GLES2 fallback automatically on hardware that doesn't support the GLES3 backend
+			editor = true;
+
+			// We still pass it to the main arguments since the argument handling itself is not done in this function
+			main_args.push_back(I->get());
+#endif
 		} else if (I->get() == "--export" || I->get() == "--export-debug") { // Export project
 
 			editor = true;
@@ -730,6 +790,8 @@ Error Main::setup(const char *execpath, int argc, char *argv[], bool p_second_ph
 			print_fps = true;
 		} else if (I->get() == "--disable-crash-handler") {
 			OS::get_singleton()->disable_crash_handler();
+		} else if (I->get() == "--skip-breakpoints") {
+			skip_breakpoints = true;
 		} else {
 			main_args.push_back(I->get());
 		}
@@ -798,6 +860,8 @@ Error Main::setup(const char *execpath, int argc, char *argv[], bool p_second_ph
 			debug_host = debug_host.substr(0, sep_pos);
 		}
 		Error derr = sdr->connect_to_host(debug_host, debug_port);
+
+		sdr->set_skip_breakpoints(skip_breakpoints);
 
 		if (derr != OK) {
 			memdelete(sdr);
@@ -937,7 +1001,7 @@ Error Main::setup(const char *execpath, int argc, char *argv[], bool p_second_ph
 		OS::get_singleton()->_allow_hidpi = GLOBAL_DEF("display/window/dpi/allow_hidpi", false);
 	}
 
-	video_mode.use_vsync = GLOBAL_DEF("display/window/vsync/use_vsync", true);
+	video_mode.use_vsync = GLOBAL_DEF_RST("display/window/vsync/use_vsync", true);
 	OS::get_singleton()->_use_vsync = video_mode.use_vsync;
 
 	OS::get_singleton()->_allow_layered = GLOBAL_DEF("display/window/per_pixel_transparency/allowed", false);
@@ -977,10 +1041,7 @@ Error Main::setup(const char *execpath, int argc, char *argv[], bool p_second_ph
 	}
 
 	if (video_driver_idx < 0) {
-
-		//OS::get_singleton()->alert("Invalid Video Driver: " + video_driver);
 		video_driver_idx = 0;
-		//goto error;
 	}
 
 	if (audio_driver == "") { // specified in project.godot
@@ -997,10 +1058,7 @@ Error Main::setup(const char *execpath, int argc, char *argv[], bool p_second_ph
 	}
 
 	if (audio_driver_idx < 0) {
-
-		OS::get_singleton()->alert("Invalid Audio Driver: " + audio_driver);
 		audio_driver_idx = 0;
-		//goto error;
 	}
 
 	{
@@ -1170,7 +1228,7 @@ Error Main::setup2(Thread::ID p_main_tid_override) {
 			boot_logo.instance();
 			Error load_err = ImageLoader::load_image(boot_logo_path, boot_logo);
 			if (load_err)
-				ERR_PRINTS("Non-existing or invalid boot splash at: " + boot_logo_path + ". Loading default splash.");
+				ERR_PRINTS("Non-existing or invalid boot splash at '" + boot_logo_path + "'. Loading default splash.");
 		}
 
 		Color boot_bg_color = GLOBAL_DEF("application/boot_splash/bg_color", boot_splash_bg_color);
@@ -1445,12 +1503,11 @@ bool Main::start() {
 	};
 
 	if (test != "") {
-#ifdef DEBUG_ENABLED
+#ifdef TOOLS_ENABLED
 		main_loop = test_main(test, args);
 
 		if (!main_loop)
 			return false;
-
 #endif
 
 	} else if (script != "") {
@@ -1741,7 +1798,7 @@ bool Main::start() {
 		if (!project_manager && !editor) { // game
 
 			// Load SSL Certificates from Project Settings (or builtin).
-			StreamPeerSSL::load_certs_from_memory(StreamPeerSSL::get_project_cert_array());
+			Crypto::load_default_certificates(GLOBAL_DEF("network/ssl/certificates", ""));
 
 			if (game_path != "") {
 				Node *scene = NULL;
@@ -1793,16 +1850,14 @@ bool Main::start() {
 		}
 
 		if (project_manager || editor) {
-			// Load SSL Certificates from Editor Settings (or builtin).
-			String certs = EditorSettings::get_singleton()->get_setting("network/ssl/editor_ssl_certificates").operator String();
-			if (certs != "")
-				StreamPeerSSL::load_certs_from_file(certs);
-			else
-				StreamPeerSSL::load_certs_from_memory(StreamPeerSSL::get_project_cert_array());
-
 			// Hide console window if requested (Windows-only).
 			bool hide_console = EditorSettings::get_singleton()->get_setting("interface/editor/hide_console_window");
 			OS::get_singleton()->set_console_visible(!hide_console);
+		}
+
+		if (project_manager || editor) {
+			// Load SSL Certificates from Editor Settings (or builtin)
+			Crypto::load_default_certificates(EditorSettings::get_singleton()->get_setting("network/ssl/editor_ssl_certificates").operator String());
 		}
 #endif
 	}

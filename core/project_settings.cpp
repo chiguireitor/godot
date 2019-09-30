@@ -113,12 +113,12 @@ String ProjectSettings::localize_path(const String &p_path) const {
 
 void ProjectSettings::set_initial_value(const String &p_name, const Variant &p_value) {
 
-	ERR_FAIL_COND(!props.has(p_name));
+	ERR_FAIL_COND_MSG(!props.has(p_name), "Request for nonexistent project setting: " + p_name + ".");
 	props[p_name].initial = p_value;
 }
 void ProjectSettings::set_restart_if_changed(const String &p_name, bool p_restart) {
 
-	ERR_FAIL_COND(!props.has(p_name));
+	ERR_FAIL_COND_MSG(!props.has(p_name), "Request for nonexistent project setting: " + p_name + ".");
 	props[p_name].restart_if_changed = p_restart;
 }
 
@@ -264,12 +264,12 @@ void ProjectSettings::_get_property_list(List<PropertyInfo> *p_list) const {
 	}
 }
 
-bool ProjectSettings::_load_resource_pack(const String &p_pack) {
+bool ProjectSettings::_load_resource_pack(const String &p_pack, bool p_replace_files) {
 
 	if (PackedData::get_singleton()->is_disabled())
 		return false;
 
-	bool ok = PackedData::get_singleton()->add_pack(p_pack) == OK;
+	bool ok = PackedData::get_singleton()->add_pack(p_pack, p_replace_files) == OK;
 
 	if (!ok)
 		return false;
@@ -336,7 +336,7 @@ Error ProjectSettings::_setup(const String &p_path, const String &p_main_pack, b
 	if (p_main_pack != "") {
 
 		bool ok = _load_resource_pack(p_main_pack);
-		ERR_FAIL_COND_V(!ok, ERR_CANT_OPEN);
+		ERR_FAIL_COND_V_MSG(!ok, ERR_CANT_OPEN, "Cannot open resource pack '" + p_main_pack + "'.");
 
 		Error err = _load_settings_text_or_binary("res://project.godot", "res://project.binary");
 		if (err == OK) {
@@ -421,7 +421,7 @@ Error ProjectSettings::_setup(const String &p_path, const String &p_main_pack, b
 	// or, if requested (`p_upwards`) in parent directories.
 
 	DirAccess *d = DirAccess::create(DirAccess::ACCESS_FILESYSTEM);
-	ERR_FAIL_COND_V(!d, ERR_CANT_CREATE);
+	ERR_FAIL_COND_V_MSG(!d, ERR_CANT_CREATE, "Cannot create DirAccess for path '" + p_path + "'.");
 	d->change_dir(p_path);
 
 	String current_dir = d->get_current_dir();
@@ -609,19 +609,19 @@ Error ProjectSettings::_load_settings_text_or_binary(const String &p_text_path, 
 
 int ProjectSettings::get_order(const String &p_name) const {
 
-	ERR_FAIL_COND_V(!props.has(p_name), -1);
+	ERR_FAIL_COND_V_MSG(!props.has(p_name), -1, "Request for nonexistent project setting: " + p_name + ".");
 	return props[p_name].order;
 }
 
 void ProjectSettings::set_order(const String &p_name, int p_order) {
 
-	ERR_FAIL_COND(!props.has(p_name));
+	ERR_FAIL_COND_MSG(!props.has(p_name), "Request for nonexistent project setting: " + p_name + ".");
 	props[p_name].order = p_order;
 }
 
 void ProjectSettings::set_builtin_order(const String &p_name) {
 
-	ERR_FAIL_COND(!props.has(p_name));
+	ERR_FAIL_COND_MSG(!props.has(p_name), "Request for nonexistent project setting: " + p_name + ".");
 	if (props[p_name].order >= NO_BUILTIN_ORDER_BASE) {
 		props[p_name].order = last_builtin_order++;
 	}
@@ -629,7 +629,7 @@ void ProjectSettings::set_builtin_order(const String &p_name) {
 
 void ProjectSettings::clear(const String &p_name) {
 
-	ERR_FAIL_COND(!props.has(p_name));
+	ERR_FAIL_COND_MSG(!props.has(p_name), "Request for nonexistent project setting: " + p_name + ".");
 	props.erase(p_name);
 }
 
@@ -706,7 +706,7 @@ Error ProjectSettings::_save_settings_binary(const String &p_file, const Map<Str
 			err = encode_variant(value, NULL, len, true);
 			if (err != OK)
 				memdelete(file);
-			ERR_FAIL_COND_V(err != OK, ERR_INVALID_DATA);
+			ERR_FAIL_COND_V_MSG(err != OK, ERR_INVALID_DATA, "Error when trying to encode Variant.");
 
 			Vector<uint8_t> buff;
 			buff.resize(len);
@@ -714,7 +714,7 @@ Error ProjectSettings::_save_settings_binary(const String &p_file, const Map<Str
 			err = encode_variant(value, buff.ptrw(), len, true);
 			if (err != OK)
 				memdelete(file);
-			ERR_FAIL_COND_V(err != OK, ERR_INVALID_DATA);
+			ERR_FAIL_COND_V_MSG(err != OK, ERR_INVALID_DATA, "Error when trying to encode Variant.");
 			file->store_32(len);
 			file->store_buffer(buff.ptr(), buff.size());
 		}
@@ -787,7 +787,7 @@ Error ProjectSettings::_save_custom_bnd(const String &p_file) { // add other par
 
 Error ProjectSettings::save_custom(const String &p_path, const CustomMap &p_custom, const Vector<String> &p_custom_features, bool p_merge_with_current) {
 
-	ERR_FAIL_COND_V(p_path == "", ERR_INVALID_PARAMETER);
+	ERR_FAIL_COND_V_MSG(p_path == "", ERR_INVALID_PARAMETER, "Project settings save path cannot be empty.");
 
 	Set<_VCSort> vclist;
 
@@ -979,7 +979,7 @@ void ProjectSettings::_bind_methods() {
 	ClassDB::bind_method(D_METHOD("localize_path", "path"), &ProjectSettings::localize_path);
 	ClassDB::bind_method(D_METHOD("globalize_path", "path"), &ProjectSettings::globalize_path);
 	ClassDB::bind_method(D_METHOD("save"), &ProjectSettings::save);
-	ClassDB::bind_method(D_METHOD("load_resource_pack", "pack"), &ProjectSettings::_load_resource_pack);
+	ClassDB::bind_method(D_METHOD("load_resource_pack", "pack", "replace_files"), &ProjectSettings::_load_resource_pack, DEFVAL(true));
 	ClassDB::bind_method(D_METHOD("property_can_revert", "name"), &ProjectSettings::property_can_revert);
 	ClassDB::bind_method(D_METHOD("property_get_revert", "name"), &ProjectSettings::property_get_revert);
 
@@ -1000,6 +1000,8 @@ ProjectSettings::ProjectSettings() {
 	Ref<InputEventJoypadButton> joyb;
 
 	GLOBAL_DEF("application/config/name", "");
+	GLOBAL_DEF("application/config/description", "");
+	custom_prop_info["application/config/description"] = PropertyInfo(Variant::STRING, "application/config/description", PROPERTY_HINT_MULTILINE_TEXT);
 	GLOBAL_DEF("application/run/main_scene", "");
 	custom_prop_info["application/run/main_scene"] = PropertyInfo(Variant::STRING, "application/run/main_scene", PROPERTY_HINT_FILE, "*.tscn,*.scn,*.res");
 	GLOBAL_DEF("application/run/disable_stdout", false);
@@ -1018,6 +1020,9 @@ ProjectSettings::ProjectSettings() {
 
 	GLOBAL_DEF("editor/search_in_file_extensions", extensions);
 	custom_prop_info["editor/search_in_file_extensions"] = PropertyInfo(Variant::POOL_STRING_ARRAY, "editor/search_in_file_extensions");
+
+	GLOBAL_DEF("editor/script_templates_search_path", "res://script_templates");
+	custom_prop_info["editor/script_templates_search_path"] = PropertyInfo(Variant::STRING, "editor/script_templates_search_path", PROPERTY_HINT_DIR);
 
 	action = Dictionary();
 	action["deadzone"] = Variant(0.5f);

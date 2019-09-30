@@ -645,6 +645,7 @@ void Control::_notification(int p_notification) {
 		} break;
 		case NOTIFICATION_THEME_CHANGED: {
 
+			minimum_size_changed();
 			update();
 		} break;
 		case NOTIFICATION_MODAL_CLOSE: {
@@ -818,7 +819,7 @@ Size2 Control::get_minimum_size() const {
 
 Ref<Texture> Control::get_icon(const StringName &p_name, const StringName &p_type) const {
 
-	if (p_type == StringName() || p_type == "") {
+	if (p_type == StringName() || p_type == get_class_name()) {
 
 		const Ref<Texture> *tex = data.icon_override.getptr(p_name);
 		if (tex)
@@ -860,7 +861,7 @@ Ref<Texture> Control::get_icon(const StringName &p_name, const StringName &p_typ
 }
 
 Ref<Shader> Control::get_shader(const StringName &p_name, const StringName &p_type) const {
-	if (p_type == StringName() || p_type == "") {
+	if (p_type == StringName() || p_type == get_class_name()) {
 
 		const Ref<Shader> *sdr = data.shader_override.getptr(p_name);
 		if (sdr)
@@ -903,7 +904,7 @@ Ref<Shader> Control::get_shader(const StringName &p_name, const StringName &p_ty
 
 Ref<StyleBox> Control::get_stylebox(const StringName &p_name, const StringName &p_type) const {
 
-	if (p_type == StringName() || p_type == "") {
+	if (p_type == StringName() || p_type == get_class_name()) {
 		const Ref<StyleBox> *style = data.style_override.getptr(p_name);
 		if (style)
 			return *style;
@@ -949,7 +950,7 @@ Ref<StyleBox> Control::get_stylebox(const StringName &p_name, const StringName &
 }
 Ref<Font> Control::get_font(const StringName &p_name, const StringName &p_type) const {
 
-	if (p_type == StringName() || p_type == "") {
+	if (p_type == StringName() || p_type == get_class_name()) {
 		const Ref<Font> *font = data.font_override.getptr(p_name);
 		if (font)
 			return *font;
@@ -986,7 +987,7 @@ Ref<Font> Control::get_font(const StringName &p_name, const StringName &p_type) 
 }
 Color Control::get_color(const StringName &p_name, const StringName &p_type) const {
 
-	if (p_type == StringName() || p_type == "") {
+	if (p_type == StringName() || p_type == get_class_name()) {
 		const Color *color = data.color_override.getptr(p_name);
 		if (color)
 			return *color;
@@ -1026,7 +1027,7 @@ Color Control::get_color(const StringName &p_name, const StringName &p_type) con
 
 int Control::get_constant(const StringName &p_name, const StringName &p_type) const {
 
-	if (p_type == StringName() || p_type == "") {
+	if (p_type == StringName() || p_type == get_class_name()) {
 		const int *constant = data.constant_override.getptr(p_name);
 		if (constant)
 			return *constant;
@@ -1102,7 +1103,7 @@ bool Control::has_constant_override(const StringName &p_name) const {
 
 bool Control::has_icon(const StringName &p_name, const StringName &p_type) const {
 
-	if (p_type == StringName() || p_type == "") {
+	if (p_type == StringName() || p_type == get_class_name()) {
 		if (has_icon_override(p_name))
 			return true;
 	}
@@ -1141,7 +1142,7 @@ bool Control::has_icon(const StringName &p_name, const StringName &p_type) const
 
 bool Control::has_shader(const StringName &p_name, const StringName &p_type) const {
 
-	if (p_type == StringName() || p_type == "") {
+	if (p_type == StringName() || p_type == get_class_name()) {
 		if (has_shader_override(p_name))
 			return true;
 	}
@@ -1179,7 +1180,7 @@ bool Control::has_shader(const StringName &p_name, const StringName &p_type) con
 }
 bool Control::has_stylebox(const StringName &p_name, const StringName &p_type) const {
 
-	if (p_type == StringName() || p_type == "") {
+	if (p_type == StringName() || p_type == get_class_name()) {
 		if (has_stylebox_override(p_name))
 			return true;
 	}
@@ -1217,7 +1218,7 @@ bool Control::has_stylebox(const StringName &p_name, const StringName &p_type) c
 }
 bool Control::has_font(const StringName &p_name, const StringName &p_type) const {
 
-	if (p_type == StringName() || p_type == "") {
+	if (p_type == StringName() || p_type == get_class_name()) {
 		if (has_font_override(p_name))
 			return true;
 	}
@@ -1256,7 +1257,7 @@ bool Control::has_font(const StringName &p_name, const StringName &p_type) const
 
 bool Control::has_color(const StringName &p_name, const StringName &p_type) const {
 
-	if (p_type == StringName() || p_type == "") {
+	if (p_type == StringName() || p_type == get_class_name()) {
 		if (has_color_override(p_name))
 			return true;
 	}
@@ -1295,7 +1296,7 @@ bool Control::has_color(const StringName &p_name, const StringName &p_type) cons
 
 bool Control::has_constant(const StringName &p_name, const StringName &p_type) const {
 
-	if (p_type == StringName() || p_type == "") {
+	if (p_type == StringName() || p_type == get_class_name()) {
 		if (has_constant_override(p_name))
 			return true;
 	}
@@ -2149,9 +2150,7 @@ bool Control::has_focus() const {
 
 void Control::grab_focus() {
 
-	if (!is_inside_tree()) {
-		ERR_FAIL_COND(!is_inside_tree());
-	}
+	ERR_FAIL_COND(!is_inside_tree());
 
 	if (data.focus_mode == FOCUS_NONE) {
 		WARN_PRINT("This control can't grab focus. Use set_focus_mode() to allow a control to get focus.");
@@ -2918,17 +2917,21 @@ void Control::_bind_methods() {
 
 	BIND_VMETHOD(MethodInfo("_gui_input", PropertyInfo(Variant::OBJECT, "event", PROPERTY_HINT_RESOURCE_TYPE, "InputEvent")));
 	BIND_VMETHOD(MethodInfo(Variant::VECTOR2, "_get_minimum_size"));
-	BIND_VMETHOD(MethodInfo(Variant::OBJECT, "get_drag_data", PropertyInfo(Variant::VECTOR2, "position")));
+
+	MethodInfo get_drag_data = MethodInfo("get_drag_data", PropertyInfo(Variant::VECTOR2, "position"));
+	get_drag_data.return_val.usage |= PROPERTY_USAGE_NIL_IS_VARIANT;
+	BIND_VMETHOD(get_drag_data);
+
 	BIND_VMETHOD(MethodInfo(Variant::BOOL, "can_drop_data", PropertyInfo(Variant::VECTOR2, "position"), PropertyInfo(Variant::NIL, "data")));
 	BIND_VMETHOD(MethodInfo("drop_data", PropertyInfo(Variant::VECTOR2, "position"), PropertyInfo(Variant::NIL, "data")));
 	BIND_VMETHOD(MethodInfo(Variant::OBJECT, "_make_custom_tooltip", PropertyInfo(Variant::STRING, "for_text")));
 	BIND_VMETHOD(MethodInfo(Variant::BOOL, "_clips_input"));
 
 	ADD_GROUP("Anchor", "anchor_");
-	ADD_PROPERTYI(PropertyInfo(Variant::REAL, "anchor_left", PROPERTY_HINT_RANGE, "0,1,0.01,or_lesser,or_greater"), "_set_anchor", "get_anchor", MARGIN_LEFT);
-	ADD_PROPERTYI(PropertyInfo(Variant::REAL, "anchor_top", PROPERTY_HINT_RANGE, "0,1,0.01,or_lesser,or_greater"), "_set_anchor", "get_anchor", MARGIN_TOP);
-	ADD_PROPERTYI(PropertyInfo(Variant::REAL, "anchor_right", PROPERTY_HINT_RANGE, "0,1,0.01,or_lesser,or_greater"), "_set_anchor", "get_anchor", MARGIN_RIGHT);
-	ADD_PROPERTYI(PropertyInfo(Variant::REAL, "anchor_bottom", PROPERTY_HINT_RANGE, "0,1,0.01,or_lesser,or_greater"), "_set_anchor", "get_anchor", MARGIN_BOTTOM);
+	ADD_PROPERTYI(PropertyInfo(Variant::REAL, "anchor_left", PROPERTY_HINT_RANGE, "0,1,0.001,or_lesser,or_greater"), "_set_anchor", "get_anchor", MARGIN_LEFT);
+	ADD_PROPERTYI(PropertyInfo(Variant::REAL, "anchor_top", PROPERTY_HINT_RANGE, "0,1,0.001,or_lesser,or_greater"), "_set_anchor", "get_anchor", MARGIN_TOP);
+	ADD_PROPERTYI(PropertyInfo(Variant::REAL, "anchor_right", PROPERTY_HINT_RANGE, "0,1,0.001,or_lesser,or_greater"), "_set_anchor", "get_anchor", MARGIN_RIGHT);
+	ADD_PROPERTYI(PropertyInfo(Variant::REAL, "anchor_bottom", PROPERTY_HINT_RANGE, "0,1,0.001,or_lesser,or_greater"), "_set_anchor", "get_anchor", MARGIN_BOTTOM);
 
 	ADD_GROUP("Margin", "margin_");
 	ADD_PROPERTYI(PropertyInfo(Variant::INT, "margin_left", PROPERTY_HINT_RANGE, "-4096,4096"), "set_margin", "get_margin", MARGIN_LEFT);

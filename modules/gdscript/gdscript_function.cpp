@@ -431,6 +431,7 @@ Variant GDScriptFunction::call(GDScriptInstance *p_instance, const Variant **p_a
 		profile.frame_call_count++;
 	}
 	bool exit_ok = false;
+	bool yielded = false;
 #endif
 
 #ifdef DEBUG_ENABLED
@@ -1323,6 +1324,7 @@ Variant GDScriptFunction::call(GDScriptInstance *p_instance, const Variant **p_a
 
 #ifdef DEBUG_ENABLED
 				exit_ok = true;
+				yielded = true;
 #endif
 				OPCODE_BREAK;
 			}
@@ -1473,20 +1475,25 @@ Variant GDScriptFunction::call(GDScriptInstance *p_instance, const Variant **p_a
 			DISPATCH_OPCODE;
 
 			OPCODE(OPCODE_ASSERT) {
-				CHECK_SPACE(2);
+				CHECK_SPACE(3);
 
 #ifdef DEBUG_ENABLED
 				GET_VARIANT_PTR(test, 1);
+				GET_VARIANT_PTR(message, 2);
 				bool result = test->booleanize();
 
 				if (!result) {
-
-					err_text = "Assertion failed.";
+					const String &message_str = *message;
+					if (message_str.empty()) {
+						err_text = "Assertion failed.";
+					} else {
+						err_text = "Assertion failed: " + message_str;
+					}
 					OPCODE_BREAK;
 				}
 
 #endif
-				ip += 2;
+				ip += 3;
 			}
 			DISPATCH_OPCODE;
 
@@ -1588,8 +1595,6 @@ Variant GDScriptFunction::call(GDScriptInstance *p_instance, const Variant **p_a
 		profile.frame_self_time += time_taken - function_call_time;
 		GDScriptLanguage::get_singleton()->script_frame_time += time_taken - function_call_time;
 	}
-
-	bool yielded = retvalue.is_ref() && Object::cast_to<GDScriptFunctionState>(retvalue);
 
 	// Check if this is the last time the function is resuming from yield
 	// Will be true if never yielded as well

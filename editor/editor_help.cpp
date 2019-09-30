@@ -30,6 +30,7 @@
 
 #include "editor_help.h"
 
+#include "core/os/input.h"
 #include "core/os/keyboard.h"
 #include "doc_data_compressed.gen.h"
 #include "editor/plugins/script_editor_plugin.h"
@@ -54,6 +55,7 @@ void EditorHelp::_init_colors() {
 	qualifier_color = text_color * Color(1, 1, 1, 0.8);
 	type_color = get_color("accent_color", "Editor").linear_interpolate(text_color, 0.5);
 	class_desc->add_color_override("selection_color", get_color("accent_color", "Editor") * Color(1, 1, 1, 0.4));
+	class_desc->add_constant_override("line_separation", Math::round(5 * EDSCALE));
 }
 
 void EditorHelp::_unhandled_key_input(const Ref<InputEvent> &p_ev) {
@@ -164,6 +166,17 @@ void EditorHelp::_class_desc_select(const String &p_select) {
 void EditorHelp::_class_desc_input(const Ref<InputEvent> &p_input) {
 }
 
+void EditorHelp::_class_desc_resized() {
+	// Add extra horizontal margins for better readability.
+	// The margins increase as the width of the editor help container increases.
+	const int display_margin = MAX(30 * EDSCALE, get_parent_anchorable_rect().size.width - 900 * EDSCALE) * 0.5;
+
+	Ref<StyleBox> class_desc_stylebox = EditorNode::get_singleton()->get_theme_base()->get_stylebox("normal", "RichTextLabel")->duplicate();
+	class_desc_stylebox->set_default_margin(MARGIN_LEFT, display_margin);
+	class_desc_stylebox->set_default_margin(MARGIN_RIGHT, display_margin);
+	class_desc->add_style_override("normal", class_desc_stylebox);
+}
+
 void EditorHelp::_add_type(const String &p_type, const String &p_enum) {
 
 	String t = p_type;
@@ -245,16 +258,17 @@ void EditorHelp::_add_method(const DocData::MethodDoc &p_method, bool p_overview
 	}
 
 	class_desc->push_color(symbol_color);
-	class_desc->add_text(p_method.arguments.size() || is_vararg ? "( " : "(");
+	class_desc->add_text("(");
 	class_desc->pop();
 
 	for (int j = 0; j < p_method.arguments.size(); j++) {
 		class_desc->push_color(text_color);
 		if (j > 0)
 			class_desc->add_text(", ");
-		_add_type(p_method.arguments[j].type, p_method.arguments[j].enumeration);
-		class_desc->add_text(" ");
+
 		_add_text(p_method.arguments[j].name);
+		class_desc->add_text(": ");
+		_add_type(p_method.arguments[j].type, p_method.arguments[j].enumeration);
 		if (p_method.arguments[j].default_value != "") {
 
 			class_desc->push_color(symbol_color);
@@ -279,7 +293,7 @@ void EditorHelp::_add_method(const DocData::MethodDoc &p_method, bool p_overview
 	}
 
 	class_desc->push_color(symbol_color);
-	class_desc->add_text(p_method.arguments.size() || is_vararg ? " )" : ")");
+	class_desc->add_text(")");
 	class_desc->pop();
 	if (p_method.qualifiers != "") {
 
@@ -412,7 +426,7 @@ void EditorHelp::_update_doc() {
 
 		class_desc->push_color(title_color);
 		class_desc->push_font(doc_title_font);
-		class_desc->add_text(TTR("Brief Description:"));
+		class_desc->add_text(TTR("Brief Description"));
 		class_desc->pop();
 		class_desc->pop();
 
@@ -439,7 +453,7 @@ void EditorHelp::_update_doc() {
 		section_line.push_back(Pair<String, int>(TTR("Properties"), class_desc->get_line_count() - 2));
 		class_desc->push_color(title_color);
 		class_desc->push_font(doc_title_font);
-		class_desc->add_text(TTR("Properties:"));
+		class_desc->add_text(TTR("Properties"));
 		class_desc->pop();
 		class_desc->pop();
 
@@ -475,6 +489,10 @@ void EditorHelp::_update_doc() {
 				describe = true;
 			}
 
+			if (cd.properties[i].overridden) {
+				describe = false;
+			}
+
 			class_desc->push_cell();
 			class_desc->push_font(doc_code_font);
 			class_desc->push_color(headline_color);
@@ -492,7 +510,7 @@ void EditorHelp::_update_doc() {
 
 			if (cd.properties[i].default_value != "") {
 				class_desc->push_color(symbol_color);
-				class_desc->add_text(" [default: ");
+				class_desc->add_text(cd.properties[i].overridden ? " [override: " : " [default: ");
 				class_desc->pop();
 				class_desc->push_color(value_color);
 				_add_text(_fix_constant(cd.properties[i].default_value));
@@ -535,7 +553,7 @@ void EditorHelp::_update_doc() {
 		section_line.push_back(Pair<String, int>(TTR("Methods"), class_desc->get_line_count() - 2));
 		class_desc->push_color(title_color);
 		class_desc->push_font(doc_title_font);
-		class_desc->add_text(TTR("Methods:"));
+		class_desc->add_text(TTR("Methods"));
 		class_desc->pop();
 		class_desc->pop();
 
@@ -606,7 +624,7 @@ void EditorHelp::_update_doc() {
 		section_line.push_back(Pair<String, int>(TTR("Theme Properties"), class_desc->get_line_count() - 2));
 		class_desc->push_color(title_color);
 		class_desc->push_font(doc_title_font);
-		class_desc->add_text(TTR("Theme Properties:"));
+		class_desc->add_text(TTR("Theme Properties"));
 		class_desc->pop();
 		class_desc->pop();
 
@@ -673,7 +691,7 @@ void EditorHelp::_update_doc() {
 		section_line.push_back(Pair<String, int>(TTR("Signals"), class_desc->get_line_count() - 2));
 		class_desc->push_color(title_color);
 		class_desc->push_font(doc_title_font);
-		class_desc->add_text(TTR("Signals:"));
+		class_desc->add_text(TTR("Signals"));
 		class_desc->pop();
 		class_desc->pop();
 
@@ -690,15 +708,16 @@ void EditorHelp::_update_doc() {
 			_add_text(cd.signals[i].name);
 			class_desc->pop();
 			class_desc->push_color(symbol_color);
-			class_desc->add_text(cd.signals[i].arguments.size() ? "( " : "(");
+			class_desc->add_text("(");
 			class_desc->pop();
 			for (int j = 0; j < cd.signals[i].arguments.size(); j++) {
 				class_desc->push_color(text_color);
 				if (j > 0)
 					class_desc->add_text(", ");
-				_add_type(cd.signals[i].arguments[j].type);
-				class_desc->add_text(" ");
+
 				_add_text(cd.signals[i].arguments[j].name);
+				class_desc->add_text(": ");
+				_add_type(cd.signals[i].arguments[j].type);
 				if (cd.signals[i].arguments[j].default_value != "") {
 
 					class_desc->push_color(symbol_color);
@@ -711,7 +730,7 @@ void EditorHelp::_update_doc() {
 			}
 
 			class_desc->push_color(symbol_color);
-			class_desc->add_text(cd.signals[i].arguments.size() ? " )" : ")");
+			class_desc->add_text(")");
 			class_desc->pop();
 			class_desc->pop(); // end monofont
 			if (cd.signals[i].description != "") {
@@ -758,7 +777,7 @@ void EditorHelp::_update_doc() {
 			section_line.push_back(Pair<String, int>(TTR("Enumerations"), class_desc->get_line_count() - 2));
 			class_desc->push_color(title_color);
 			class_desc->push_font(doc_title_font);
-			class_desc->add_text(TTR("Enumerations:"));
+			class_desc->add_text(TTR("Enumerations"));
 			class_desc->pop();
 			class_desc->pop();
 			class_desc->push_indent(1);
@@ -844,7 +863,7 @@ void EditorHelp::_update_doc() {
 			section_line.push_back(Pair<String, int>(TTR("Constants"), class_desc->get_line_count() - 2));
 			class_desc->push_color(title_color);
 			class_desc->push_font(doc_title_font);
-			class_desc->add_text(TTR("Constants:"));
+			class_desc->add_text(TTR("Constants"));
 			class_desc->pop();
 			class_desc->pop();
 			class_desc->push_indent(1);
@@ -904,7 +923,7 @@ void EditorHelp::_update_doc() {
 		description_line = class_desc->get_line_count() - 2;
 		class_desc->push_color(title_color);
 		class_desc->push_font(doc_title_font);
-		class_desc->add_text(TTR("Class Description:"));
+		class_desc->add_text(TTR("Class Description"));
 		class_desc->pop();
 		class_desc->pop();
 
@@ -926,7 +945,7 @@ void EditorHelp::_update_doc() {
 	{
 		class_desc->push_color(title_color);
 		class_desc->push_font(doc_title_font);
-		class_desc->add_text(TTR("Online Tutorials:"));
+		class_desc->add_text(TTR("Online Tutorials"));
 		class_desc->pop();
 		class_desc->pop();
 		class_desc->push_indent(1);
@@ -968,7 +987,7 @@ void EditorHelp::_update_doc() {
 		section_line.push_back(Pair<String, int>(TTR("Property Descriptions"), class_desc->get_line_count() - 2));
 		class_desc->push_color(title_color);
 		class_desc->push_font(doc_title_font);
-		class_desc->add_text(TTR("Property Descriptions:"));
+		class_desc->add_text(TTR("Property Descriptions"));
 		class_desc->pop();
 		class_desc->pop();
 
@@ -976,6 +995,9 @@ void EditorHelp::_update_doc() {
 		class_desc->add_newline();
 
 		for (int i = 0; i < cd.properties.size(); i++) {
+
+			if (cd.properties[i].overridden)
+				continue;
 
 			property_line[cd.properties[i].name] = class_desc->get_line_count() - 2;
 
@@ -1078,7 +1100,7 @@ void EditorHelp::_update_doc() {
 		section_line.push_back(Pair<String, int>(TTR("Method Descriptions"), class_desc->get_line_count() - 2));
 		class_desc->push_color(title_color);
 		class_desc->push_font(doc_title_font);
-		class_desc->add_text(TTR("Method Descriptions:"));
+		class_desc->add_text(TTR("Method Descriptions"));
 		class_desc->pop();
 		class_desc->pop();
 
@@ -1488,6 +1510,7 @@ void EditorHelp::_bind_methods() {
 	ClassDB::bind_method("_class_list_select", &EditorHelp::_class_list_select);
 	ClassDB::bind_method("_class_desc_select", &EditorHelp::_class_desc_select);
 	ClassDB::bind_method("_class_desc_input", &EditorHelp::_class_desc_input);
+	ClassDB::bind_method("_class_desc_resized", &EditorHelp::_class_desc_resized);
 	ClassDB::bind_method("_request_help", &EditorHelp::_request_help);
 	ClassDB::bind_method("_unhandled_key_input", &EditorHelp::_unhandled_key_input);
 	ClassDB::bind_method("_search", &EditorHelp::_search);
@@ -1506,8 +1529,11 @@ EditorHelp::EditorHelp() {
 	add_child(class_desc);
 	class_desc->set_v_size_flags(SIZE_EXPAND_FILL);
 	class_desc->add_color_override("selection_color", get_color("accent_color", "Editor") * Color(1, 1, 1, 0.4));
+
 	class_desc->connect("meta_clicked", this, "_class_desc_select");
 	class_desc->connect("gui_input", this, "_class_desc_input");
+	class_desc->connect("resized", this, "_class_desc_resized");
+	_class_desc_resized();
 
 	// Added second so it opens at the bottom so it won't offset the entire widget.
 	find_bar = memnew(FindBar);
@@ -1791,5 +1817,9 @@ void FindBar::_search_text_changed(const String &p_text) {
 
 void FindBar::_search_text_entered(const String &p_text) {
 
-	search_next();
+	if (Input::get_singleton()->is_key_pressed(KEY_SHIFT)) {
+		search_prev();
+	} else {
+		search_next();
+	}
 }

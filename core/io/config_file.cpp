@@ -111,7 +111,7 @@ void ConfigFile::get_sections(List<String> *r_sections) const {
 }
 void ConfigFile::get_section_keys(const String &p_section, List<String> *r_keys) const {
 
-	ERR_FAIL_COND(!values.has(p_section));
+	ERR_FAIL_COND_MSG(!values.has(p_section), "Cannont get keys from nonexistent section '" + p_section + "'.");
 
 	for (OrderedHashMap<String, Variant>::ConstElement E = values[p_section].front(); E; E = E.next()) {
 		r_keys->push_back(E.key());
@@ -201,7 +201,7 @@ Error ConfigFile::load(const String &p_path) {
 	FileAccess *f = FileAccess::open(p_path, FileAccess::READ, &err);
 
 	if (!f)
-		return ERR_CANT_OPEN;
+		return err;
 
 	return _internal_load(p_path, f);
 }

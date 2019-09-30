@@ -612,6 +612,25 @@ String VisualShader::generate_preview_shader(Type p_type, int p_node, int p_port
 
 	global_code += String() + "shader_type canvas_item;\n";
 
+	String global_expressions;
+	for (int i = 0, index = 0; i < TYPE_MAX; i++) {
+		for (Map<int, Node>::Element *E = graph[i].nodes.front(); E; E = E->next()) {
+			Ref<VisualShaderNodeGlobalExpression> global_expression = Object::cast_to<VisualShaderNodeGlobalExpression>(E->get().node.ptr());
+			if (global_expression.is_valid()) {
+
+				String expr = "";
+				expr += "// " + global_expression->get_caption() + ":" + itos(index++) + "\n";
+				expr += global_expression->generate_global(get_mode(), Type(i), -1);
+				expr = expr.replace("\n", "\n\t");
+				expr += "\n";
+				global_expressions += expr;
+			}
+		}
+	}
+
+	global_code += "\n";
+	global_code += global_expressions;
+
 	//make it faster to go around through shader
 	VMap<ConnectionKey, const List<Connection>::Element *> input_connections;
 	VMap<ConnectionKey, const List<Connection>::Element *> output_connections;
@@ -1064,7 +1083,7 @@ Error VisualShader::_write_node(Type type, StringBuilder &global_code, StringBui
 			} else if (defval.get_type() == Variant::BOOL) {
 				bool val = defval;
 				inputs[i] = "n_in" + itos(node) + "p" + itos(i);
-				code += "\nbool " + inputs[i] + " = " + (val ? "true" : "false") + ";\n";
+				code += "\tbool " + inputs[i] + " = " + (val ? "true" : "false") + ";\n";
 			} else if (defval.get_type() == Variant::VECTOR3) {
 				Vector3 val = defval;
 				inputs[i] = "n_in" + itos(node) + "p" + itos(i);
@@ -1380,6 +1399,7 @@ const VisualShaderNodeInput::Port VisualShaderNodeInput::ports[] = {
 	{ Shader::MODE_SPATIAL, VisualShader::TYPE_VERTEX, VisualShaderNode::PORT_TYPE_TRANSFORM, "inv_projection", "INV_PROJECTION_MATRIX" },
 	{ Shader::MODE_SPATIAL, VisualShader::TYPE_VERTEX, VisualShaderNode::PORT_TYPE_SCALAR, "time", "TIME" },
 	{ Shader::MODE_SPATIAL, VisualShader::TYPE_VERTEX, VisualShaderNode::PORT_TYPE_VECTOR, "viewport_size", "vec3(VIEWPORT_SIZE, 0)" },
+	{ Shader::MODE_SPATIAL, VisualShader::TYPE_VERTEX, VisualShaderNode::PORT_TYPE_BOOLEAN, "output_is_srgb", "OUTPUT_IS_SRGB" },
 
 	// Spatial, Fragment
 	{ Shader::MODE_SPATIAL, VisualShader::TYPE_FRAGMENT, VisualShaderNode::PORT_TYPE_VECTOR, "fragcoord", "FRAGCOORD.xyz" },
@@ -1404,6 +1424,8 @@ const VisualShaderNodeInput::Port VisualShaderNodeInput::ports[] = {
 	{ Shader::MODE_SPATIAL, VisualShader::TYPE_FRAGMENT, VisualShaderNode::PORT_TYPE_TRANSFORM, "inv_projection", "INV_PROJECTION_MATRIX" },
 	{ Shader::MODE_SPATIAL, VisualShader::TYPE_FRAGMENT, VisualShaderNode::PORT_TYPE_SCALAR, "time", "TIME" },
 	{ Shader::MODE_SPATIAL, VisualShader::TYPE_FRAGMENT, VisualShaderNode::PORT_TYPE_VECTOR, "viewport_size", "vec3(VIEWPORT_SIZE, 0.0)" },
+	{ Shader::MODE_SPATIAL, VisualShader::TYPE_FRAGMENT, VisualShaderNode::PORT_TYPE_BOOLEAN, "output_is_srgb", "OUTPUT_IS_SRGB" },
+	{ Shader::MODE_SPATIAL, VisualShader::TYPE_FRAGMENT, VisualShaderNode::PORT_TYPE_BOOLEAN, "front_facing", "FRONT_FACING" },
 
 	// Spatial, Light
 	{ Shader::MODE_SPATIAL, VisualShader::TYPE_LIGHT, VisualShaderNode::PORT_TYPE_VECTOR, "fragcoord", "FRAGCOORD.xyz" },
@@ -1425,6 +1447,7 @@ const VisualShaderNodeInput::Port VisualShaderNodeInput::ports[] = {
 	{ Shader::MODE_SPATIAL, VisualShader::TYPE_LIGHT, VisualShaderNode::PORT_TYPE_TRANSFORM, "inv_projection", "INV_PROJECTION_MATRIX" },
 	{ Shader::MODE_SPATIAL, VisualShader::TYPE_LIGHT, VisualShaderNode::PORT_TYPE_SCALAR, "time", "TIME" },
 	{ Shader::MODE_SPATIAL, VisualShader::TYPE_LIGHT, VisualShaderNode::PORT_TYPE_VECTOR, "viewport_size", "vec3(VIEWPORT_SIZE, 0.0)" },
+	{ Shader::MODE_SPATIAL, VisualShader::TYPE_LIGHT, VisualShaderNode::PORT_TYPE_BOOLEAN, "output_is_srgb", "OUTPUT_IS_SRGB" },
 	// Canvas Item, Vertex
 	{ Shader::MODE_CANVAS_ITEM, VisualShader::TYPE_VERTEX, VisualShaderNode::PORT_TYPE_VECTOR, "vertex", "vec3(VERTEX,0.0)" },
 	{ Shader::MODE_CANVAS_ITEM, VisualShader::TYPE_VERTEX, VisualShaderNode::PORT_TYPE_VECTOR, "uv", "vec3(UV,0.0)" },
@@ -2387,10 +2410,10 @@ void VisualShaderNodeGroupBase::_bind_methods() {
 	ClassDB::bind_method(D_METHOD("has_output_port", "id"), &VisualShaderNodeGroupBase::has_output_port);
 	ClassDB::bind_method(D_METHOD("clear_output_ports"), &VisualShaderNodeGroupBase::clear_output_ports);
 
-	ClassDB::bind_method(D_METHOD("set_input_port_name"), &VisualShaderNodeGroupBase::set_input_port_name);
-	ClassDB::bind_method(D_METHOD("set_input_port_type"), &VisualShaderNodeGroupBase::set_input_port_type);
-	ClassDB::bind_method(D_METHOD("set_output_port_name"), &VisualShaderNodeGroupBase::set_output_port_name);
-	ClassDB::bind_method(D_METHOD("set_output_port_type"), &VisualShaderNodeGroupBase::set_output_port_type);
+	ClassDB::bind_method(D_METHOD("set_input_port_name", "id", "name"), &VisualShaderNodeGroupBase::set_input_port_name);
+	ClassDB::bind_method(D_METHOD("set_input_port_type", "id", "type"), &VisualShaderNodeGroupBase::set_input_port_type);
+	ClassDB::bind_method(D_METHOD("set_output_port_name", "id", "name"), &VisualShaderNodeGroupBase::set_output_port_name);
+	ClassDB::bind_method(D_METHOD("set_output_port_type", "id", "type"), &VisualShaderNodeGroupBase::set_output_port_type);
 
 	ClassDB::bind_method(D_METHOD("get_free_input_port_id"), &VisualShaderNodeGroupBase::get_free_input_port_id);
 	ClassDB::bind_method(D_METHOD("get_free_output_port_id"), &VisualShaderNodeGroupBase::get_free_output_port_id);
@@ -2400,6 +2423,8 @@ void VisualShaderNodeGroupBase::_bind_methods() {
 
 	ClassDB::bind_method(D_METHOD("set_editable", "enabled"), &VisualShaderNodeGroupBase::set_editable);
 	ClassDB::bind_method(D_METHOD("is_editable"), &VisualShaderNodeGroupBase::is_editable);
+
+	ADD_PROPERTY(PropertyInfo(Variant::BOOL, "editable"), "set_editable", "is_editable");
 }
 
 String VisualShaderNodeGroupBase::generate_code(Shader::Mode p_mode, VisualShader::Type p_type, int p_id, const String *p_input_vars, const String *p_output_vars, bool p_for_preview) const {
@@ -2442,8 +2467,10 @@ String VisualShaderNodeExpression::generate_code(Shader::Mode p_mode, VisualShad
 	if (pre_symbols.empty()) {
 		pre_symbols.push_back("\t");
 		pre_symbols.push_back(",");
+		pre_symbols.push_back(";");
 		pre_symbols.push_back("{");
 		pre_symbols.push_back("[");
+		pre_symbols.push_back("]");
 		pre_symbols.push_back("(");
 		pre_symbols.push_back(" ");
 		pre_symbols.push_back("-");
@@ -2458,11 +2485,12 @@ String VisualShaderNodeExpression::generate_code(Shader::Mode p_mode, VisualShad
 
 	static Vector<String> post_symbols;
 	if (post_symbols.empty()) {
-		post_symbols.push_back("\0");
 		post_symbols.push_back("\t");
 		post_symbols.push_back("\n");
+		post_symbols.push_back(",");
 		post_symbols.push_back(";");
 		post_symbols.push_back("}");
+		post_symbols.push_back("[");
 		post_symbols.push_back("]");
 		post_symbols.push_back(")");
 		post_symbols.push_back(" ");
